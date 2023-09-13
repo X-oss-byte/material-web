@@ -125,7 +125,7 @@ export abstract class Menu extends LitElement {
   /**
    * The tabindex of the underlying list element.
    */
-  @property({type: Number, attribute: 'list-tabindex'}) listTabIndex = 0;
+  @property({type: Number, attribute: 'list-tabindex'}) listTabIndex = -1;
   /**
    * The role of the underlying list element.
    */
@@ -176,9 +176,12 @@ export abstract class Menu extends LitElement {
   skipRestoreFocus = false;
   /**
    * The element that should be focused by default once opened.
+   *
+   * NOTE: When setting default focus to 'LIST_ROOT', remember to change
+   * `list-tabindex` to `0` when necessary.
    */
   @property({attribute: 'default-focus'})
-  defaultFocus: DefaultFocusState = 'LIST_ROOT';
+  defaultFocus: DefaultFocusState = 'FIRST_ITEM';
 
   @state() private typeaheadActive = true;
 
@@ -386,7 +389,7 @@ export abstract class Menu extends LitElement {
    * Saves the last focused element focuses the new element based on
    * `defaultFocus`, and animates open.
    */
-  private readonly onOpened = () => {
+  private readonly onOpened = async () => {
     this.lastFocusedElement = getFocusedElement();
 
     if (!this.listElement) return;
@@ -395,20 +398,35 @@ export abstract class Menu extends LitElement {
     const activeItemRecord = List.getActiveItem(items);
 
     if (activeItemRecord && this.defaultFocus !== 'NONE') {
-      activeItemRecord.item.active = false;
+      activeItemRecord.item.tabIndex = -1;
     }
 
+    let animationAborted = !this.quick;
+
+    if (this.quick) {
+      this.dispatchEvent(new Event('opening'));
+    } else {
+      animationAborted = !!await this.animateOpen();
+    }
+
+    // This must come after the opening animation or else it may focus one of
+    // the items before the animation has begun and causes the list to slide
+    // (block-padding-of-the-menu)px at the end of the animation
     switch (this.defaultFocus) {
       case 'FIRST_ITEM':
         const first = List.getFirstActivatableItem(items);
         if (first) {
-          first.active = true;
+          first.tabIndex = 0;
+          first.focus();
+          await (first as LitElement & MenuItem).updateComplete;
         }
         break;
       case 'LAST_ITEM':
         const last = List.getLastActivatableItem(items);
         if (last) {
-          last.active = true;
+          last.tabIndex = 0;
+          last.focus();
+          await (last as LitElement & MenuItem).updateComplete;
         }
         break;
       case 'LIST_ROOT':
@@ -420,11 +438,8 @@ export abstract class Menu extends LitElement {
         break;
     }
 
-    if (this.quick) {
-      this.dispatchEvent(new Event('opening'));
+    if (!animationAborted) {
       this.dispatchEvent(new Event('opened'));
-    } else {
-      this.animateOpen();
     }
   };
 
@@ -457,12 +472,15 @@ export abstract class Menu extends LitElement {
    * Performs the opening animation:
    *
    * https://direct.googleplex.com/#/spec/295000003+271060003
+   *
+   * @return A promise that resolve to `true` if the animation was aborted,
+   *     `false` if it was not aborted.
    */
-  private animateOpen() {
+  private async animateOpen() {
     const surfaceEl = this.surfaceEl;
     const slotEl = this.slotEl;
 
-    if (!surfaceEl || !slotEl) return;
+    if (!surfaceEl || !slotEl) return true;
 
     const openDirection = this.openDirection;
     this.dispatchEvent(new Event('opening'));
@@ -521,6 +539,11 @@ export abstract class Menu extends LitElement {
       childrenAnimations.push([child, animation]);
     }
 
+    let resolveAnimation = (value: boolean) => {};
+    const animationFinished = new Promise<boolean>((resolve) => {
+      resolveAnimation = resolve;
+    });
+
     signal.addEventListener('abort', () => {
       surfaceHeightAnimation.cancel();
       upPositionCorrectionAnimation.cancel();
@@ -529,13 +552,17 @@ export abstract class Menu extends LitElement {
         child.classList.toggle('md-menu-hidden', false);
         animation.cancel();
       });
+
+      resolveAnimation(true);
     });
 
     surfaceHeightAnimation.addEventListener('finish', () => {
       surfaceEl.classList.toggle('animating', false);
       this.openCloseAnimationSignal.finish();
-      this.dispatchEvent(new Event('opened'));
+      resolveAnimation(false);
     });
+
+    return await animationFinished;
   }
 
   /**
@@ -688,7 +715,6 @@ export abstract class Menu extends LitElement {
     event.stopPropagation();
     const items = this.items;
     for (const item of items) {
-      item.active = false;
       item.selected = false;
     }
   }

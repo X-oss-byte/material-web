@@ -15,11 +15,6 @@ interface MenuItemSelf {
    */
   headline: string;
   /**
-   * Whether or not the item is the currently active item of interest (focuses
-   * upon activation).
-   */
-  active: boolean;
-  /**
    * Whether or not the item is in the selected visual state.
    */
   selected?: boolean;
@@ -112,24 +107,7 @@ export type CloseMenuEvent<T extends Reason = DefaultReasons> =
     ReturnType<typeof createCloseMenuEvent<T>>;
 
 /**
- * Creates an event that requests the parent md-menu to deactivate all other
- * items.
- */
-export function createDeactivateItemsEvent() {
-  return new Event('deactivate-items', {bubbles: true, composed: true});
-}
-
-/**
- * The type of the event that requests the parent md-menu to deactivate all
- * other items.
- */
-export type DeactivateItemsEvent =
-    ReturnType<typeof createDeactivateItemsEvent>;
-
-
-/**
- * Creates an event that requests the typeahead functionality of containing menu
- * be deactivated.
+ * Creates an event that requests the given item be selected.
  */
 export function createDeactivateTypeaheadEvent() {
   return new Event('deactivate-typeahead', {bubbles: true, composed: true});
