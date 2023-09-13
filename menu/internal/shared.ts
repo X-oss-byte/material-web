@@ -15,11 +15,6 @@ interface MenuItemSelf {
    */
   headline: string;
   /**
-   * Whether or not the item is the currently active item of interest (focuses
-   * upon activation).
-   */
-  active: boolean;
-  /**
    * Whether or not the item is in the selected visual state.
    */
   selected?: boolean;
@@ -126,10 +121,21 @@ export function createDeactivateItemsEvent() {
 export type DeactivateItemsEvent =
     ReturnType<typeof createDeactivateItemsEvent>;
 
+/**
+ * Creates an event that requests the menu activates and focuses the item.
+ */
+export function createRequestActivationEvent() {
+  return new Event('request-activation', {bubbles: true, composed: true});
+}
 
 /**
- * Creates an event that requests the typeahead functionality of containing menu
- * be deactivated.
+ * The type of the event that requests the menu activates and focuses the item.
+ */
+export type RequestActivationEvent =
+    ReturnType<typeof createRequestActivationEvent>;
+
+/**
+ * Creates an event that requests the given item be selected.
  */
 export function createDeactivateTypeaheadEvent() {
   return new Event('deactivate-typeahead', {bubbles: true, composed: true});
